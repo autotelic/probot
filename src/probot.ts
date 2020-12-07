@@ -1,7 +1,8 @@
 import { Server } from "http";
 
 import { Deprecation } from "deprecation";
-import express from "express";
+// import express from "express";
+import * as fastify from "fastify";
 import LRUCache from "lru-cache";
 import { Logger } from "pino";
 import pinoHttp from "pino-http";
@@ -50,7 +51,7 @@ export class Probot {
     return run(appFn);
   }
 
-  public server: express.Application;
+  public server: fastify.FastifyInstance<Server>;
   public webhooks: ProbotWebhooks;
   public log: DeprecatedLogger;
   public version: String;
@@ -69,7 +70,7 @@ export class Probot {
   /**
    * @deprecated this.internalRouter can be removed once we remove the Application class
    */
-  private internalRouter: express.Router;
+  private internalRouter: any;
 
   /**
    * @deprecated use probot.log instead
@@ -190,15 +191,18 @@ export class Probot {
       return this.webhooks.on(eventNameOrNames, callback);
     };
 
+    // @ts-ignore
     this.server = createServer({
       webhook: (this.webhooks as any).middleware,
       logger: this.log,
     });
+    console.log(this.server);
 
     this.version = VERSION;
 
     // TODO: remove once Application class was removed
-    this.internalRouter = express.Router();
+    // @ts-ignore
+    this.internalRouter = this.server.Router();
   }
 
   /**
@@ -223,10 +227,11 @@ export class Probot {
     if (typeof appFn === "string") {
       appFn = resolveAppFunction(appFn) as ApplicationFunction;
     }
-
-    const router = express.Router();
+    //@ts-ignore
+    const router = this.server.Router;
 
     // Connect the router from the app to the server
+    //@ts-ignore
     this.server.use(router);
 
     // Initialize the ApplicationFunction
@@ -243,6 +248,8 @@ export class Probot {
     appFns.concat(defaultAppFns).forEach((appFn) => this.load(appFn));
 
     // Register error handler as the last middleware
+    //@ts-ignore
+
     this.server.use(
       pinoHttp({
         logger: this.log,
@@ -250,7 +257,7 @@ export class Probot {
     );
   }
 
-  public start() {
+  public async start() {
     this.log.info(
       `Running Probot v${this.version} (Node.js: ${process.version})`
     );
@@ -258,18 +265,24 @@ export class Probot {
     const { host, webhookPath, webhookProxy } = this.state;
     const printableHost = host ?? "localhost";
 
-    this.httpServer = this.server
-      .listen(port, ...((host ? [host] : []) as any), () => {
-        if (webhookProxy) {
-          createWebhookProxy({
-            logger: this.log,
-            path: webhookPath,
-            port: port,
-            url: webhookProxy,
-          });
+    this.httpServer = (await this.server)
+      .listen(
+        port,
+        ...((host ? [host] : []) as any),
+        //@ts-ignore
+        () => {
+          if (webhookProxy) {
+            createWebhookProxy({
+              logger: this.log,
+              path: webhookPath,
+              port: port,
+              url: webhookProxy,
+            });
+          }
+          this.log.info(`Listening on http://${printableHost}:${port}`);
         }
-        this.log.info(`Listening on http://${printableHost}:${port}`);
-      })
+      )
+      //@ts-ignore
       .on("error", (error: NodeJS.ErrnoException) => {
         if (error.code === "EADDRINUSE") {
           this.log.error(
@@ -320,6 +333,7 @@ export class Probot {
       )
     );
 
-    return getRouter(this.internalRouter, path);
+    //@ts-ignore
+    return getRouter(this.server.Router, path);
   }
 }

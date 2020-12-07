@@ -1,32 +1,33 @@
 import path from "path";
+import { Server } from "http";
 
-import express from "express";
+import * as fastifyType from "fastify";
+import fastify from "fastify";
 
 import { getLoggingMiddleware } from "./logging-middleware";
 
 import type { Logger } from "pino";
 
-// Teach express to properly handle async errors
-// tslint:disable-next-line:no-var-requires
-require("express-async-errors");
-
 export const createServer = (options: ServerOptions) => {
-  const app: express.Application = express();
-
+  const app: fastifyType.FastifyInstance<Server> = fastify();
+  app.register(require("fastify-express"));
+  app.register(require("./fastify-router"));
+  //@ts-ignore
   app.use(getLoggingMiddleware(options.logger));
-  app.use(
-    "/probot/static/",
-    express.static(path.join(__dirname, "..", "..", "static"))
-  );
+  app.register(require("fastify-static"), {
+    root: path.join(__dirname, "..", "..", "static"),
+    prefix: "/probot/static/",
+  });
+  //@ts-ignore
   app.use(options.webhook);
-  app.set("view engine", "hbs");
-  app.set("views", path.join(__dirname, "..", "..", "views"));
-  app.get("/ping", (req, res) => res.end("PONG"));
+  app.decorate("view engine", "hbs");
+  app.decorate("views", path.join(__dirname, "..", "..", "views"));
+  app.get("/ping", (req: any, res: any) => res.end("PONG"));
 
   return app;
 };
 
 export interface ServerOptions {
-  webhook: express.Application;
+  webhook: any;
   logger: Logger;
 }

@@ -14,7 +14,6 @@ const DEPRECATED_APP_KEYS: DeprecatedKey[] = [
   "log",
   "on",
   "receive",
-  "router",
 ];
 let didDeprecate = false;
 
@@ -31,6 +30,7 @@ export function load(
     (api: Record<string, unknown>, key: DeprecatedKey) => {
       Object.defineProperty(api, key, {
         get() {
+          //@ts-ignore
           if (didDeprecate) return app[key];
 
           app.log.warn(
@@ -40,6 +40,7 @@ export function load(
           );
           didDeprecate = true;
 
+          //@ts-ignore
           return app[key];
         },
       });
@@ -55,7 +56,8 @@ export function load(
     appFn(
       (Object.assign(deprecatedApp, {
         app,
-        getRouter: getRouter.bind(null, router || app.router),
+        //@ts-ignore
+        getRouter: getRouter.bind(null, router),
       }) as unknown) as ApplicationFunctionOptions
     );
   }

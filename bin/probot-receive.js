@@ -1,3 +1,3 @@
 #!/usr/bin/env node
 
-require("../lib/bin/probot-receive");
+require('../lib/bin/probot-receive')

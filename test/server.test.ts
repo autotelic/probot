@@ -1,17 +1,22 @@
-import { Application, NextFunction, Request, Response } from "express";
+import { Server } from "http";
+
+import * as fastify from "fastify";
+import { NextFunction, Request, Response } from "express";
 import request from "supertest";
 import { getLog } from "../src/helpers/get-log";
 import { createServer } from "../src/server/create-server";
 
 describe("server", () => {
-  let server: Application;
+  let server: fastify.FastifyInstance<Server>;
   let webhook: any;
 
   beforeEach(() => {
     webhook = jest.fn((req, res, next) => next());
+    // @ts-ignore
     server = createServer({ webhook, logger: getLog({ level: "fatal" }) });
 
     // Error handler to avoid printing logs
+    // @ts-ignore
     server.use(
       (error: Error, req: Request, res: Response, next: NextFunction) => {
         res.status(500).send(error.message);
