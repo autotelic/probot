@@ -1,7 +1,7 @@
 import { Server } from "http";
 
 import { Deprecation } from "deprecation";
-// import express from "express";
+import express from '@types/express'
 import * as fastify from "fastify";
 import LRUCache from "lru-cache";
 import { Logger } from "pino";
@@ -51,7 +51,7 @@ export class Probot {
     return run(appFn);
   }
 
-  public server: fastify.FastifyInstance<Server>;
+  public server: Promise<fastify.FastifyInstance<Server>>;
   public webhooks: ProbotWebhooks;
   public log: DeprecatedLogger;
   public version: String;
@@ -191,18 +191,16 @@ export class Probot {
       return this.webhooks.on(eventNameOrNames, callback);
     };
 
-    // @ts-ignore
     this.server = createServer({
       webhook: (this.webhooks as any).middleware,
       logger: this.log,
     });
-    console.log(this.server);
 
     this.version = VERSION;
 
     // TODO: remove once Application class was removed
     // @ts-ignore
-    this.internalRouter = this.server.Router();
+    // this.internalRouter = this.server.Router;
   }
 
   /**
@@ -223,16 +221,14 @@ export class Probot {
     return this.webhooks.receive(event);
   }
 
-  public load(appFn: string | ApplicationFunction | ApplicationFunction[]) {
+  public async load(appFn: string | ApplicationFunction | ApplicationFunction[]) {
     if (typeof appFn === "string") {
       appFn = resolveAppFunction(appFn) as ApplicationFunction;
     }
-    //@ts-ignore
-    const router = this.server.Router;
+    const router = await this.server.Router;
 
     // Connect the router from the app to the server
-    //@ts-ignore
-    this.server.use(router);
+    await this.server.use(router);
 
     // Initialize the ApplicationFunction
     load(this, router, appFn);
@@ -240,7 +236,7 @@ export class Probot {
     return this;
   }
 
-  public setup(appFns: Array<string | ApplicationFunction>) {
+  public async setup(appFns: Array<string | ApplicationFunction>) {
     // Log all unhandled rejections
     process.on("unhandledRejection", getErrorHandler(this.log));
 
@@ -248,9 +244,7 @@ export class Probot {
     appFns.concat(defaultAppFns).forEach((appFn) => this.load(appFn));
 
     // Register error handler as the last middleware
-    //@ts-ignore
-
-    this.server.use(
+    await this.server.use(
       pinoHttp({
         logger: this.log,
       })
@@ -282,17 +276,16 @@ export class Probot {
           this.log.info(`Listening on http://${printableHost}:${port}`);
         }
       )
-      //@ts-ignore
-      .on("error", (error: NodeJS.ErrnoException) => {
-        if (error.code === "EADDRINUSE") {
-          this.log.error(
-            `Port ${port} is already in use. You can define the PORT environment variable to use a different port.`
-          );
-        } else {
-          this.log.error(error);
-        }
-        process.exit(1);
-      });
+      // .on("error", (error: NodeJS.ErrnoException) => {
+      //   if (error.code === "EADDRINUSE") {
+      //     this.log.error(
+      //       `Port ${port} is already in use. You can define the PORT environment variable to use a different port.`
+      //     );
+      //   } else {
+      //     this.log.error(error);
+      //   }
+      //   process.exit(1);
+      // });
 
     return this.httpServer;
   }
@@ -326,7 +319,7 @@ export class Probot {
    *
    * @deprecated "app.route()" is deprecated, use the "getRouter()" argument from the app function instead: "({ app, getRouter }) => { ... }"
    */
-  route(path?: string) {
+  async route(path?: string) {
     this.log.warn(
       new Deprecation(
         `[probot] "app.route()" is deprecated, use the "getRouter()" argument from the app function instead: "({ app, getRouter }) => { ... }"`
@@ -334,6 +327,6 @@ export class Probot {
     );
 
     //@ts-ignore
-    return getRouter(this.server.Router, path);
+    return getRouter(await this.server.Router, path);
   }
 }

@@ -1,9 +1,11 @@
 module.exports = ({ app }) => {
   // Your code here
   app.log.info('Yay! The app was loaded!')
+  console.log('app opened')
 
   // example of probot responding 'Hello World' to a new issue being opened
   app.on('issues.opened', async (context) => {
+    console.log('Issue Opened')
     // `context` extracts information from the event, which can be passed to
     // GitHub API calls. This will return:
     //   {owner: 'yourname', repo: 'yourrepo', issue_number: 123, body: 'Hello World!}

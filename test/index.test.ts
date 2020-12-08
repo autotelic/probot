@@ -469,6 +469,7 @@ describe("Probot", () => {
 
     it("is propagated to Octokit", async () => {
       const app = probot.load(() => {});
+      //@ts-ignore
       const octokit: InstanceType<typeof ProbotOctokit> = await app.auth();
       expect(octokit.foo).toBe("bar");
     });
