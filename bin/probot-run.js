@@ -1,3 +1,3 @@
 #!/usr/bin/env node
 
-require("../lib/bin/probot-run");
+require('../lib/bin/probot-run')

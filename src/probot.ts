@@ -1,7 +1,8 @@
 import { Server } from "http";
 
 import { Deprecation } from "deprecation";
-import express from "express";
+import express from '@types/express'
+import * as fastify from "fastify";
 import LRUCache from "lru-cache";
 import { Logger } from "pino";
 import pinoHttp from "pino-http";
@@ -50,7 +51,7 @@ export class Probot {
     return run(appFn);
   }
 
-  public server: express.Application;
+  public server: Promise<fastify.FastifyInstance<Server>>;
   public webhooks: ProbotWebhooks;
   public log: DeprecatedLogger;
   public version: String;
@@ -69,7 +70,7 @@ export class Probot {
   /**
    * @deprecated this.internalRouter can be removed once we remove the Application class
    */
-  private internalRouter: express.Router;
+  private internalRouter: any;
 
   /**
    * @deprecated use probot.log instead
@@ -198,7 +199,8 @@ export class Probot {
     this.version = VERSION;
 
     // TODO: remove once Application class was removed
-    this.internalRouter = express.Router();
+    // @ts-ignore
+    // this.internalRouter = this.server.Router;
   }
 
   /**
@@ -219,15 +221,14 @@ export class Probot {
     return this.webhooks.receive(event);
   }
 
-  public load(appFn: string | ApplicationFunction | ApplicationFunction[]) {
+  public async load(appFn: string | ApplicationFunction | ApplicationFunction[]) {
     if (typeof appFn === "string") {
       appFn = resolveAppFunction(appFn) as ApplicationFunction;
     }
-
-    const router = express.Router();
+    const router = await this.server.Router;
 
     // Connect the router from the app to the server
-    this.server.use(router);
+    await this.server.use(router);
 
     // Initialize the ApplicationFunction
     load(this, router, appFn);
@@ -235,7 +236,7 @@ export class Probot {
     return this;
   }
 
-  public setup(appFns: Array<string | ApplicationFunction>) {
+  public async setup(appFns: Array<string | ApplicationFunction>) {
     // Log all unhandled rejections
     process.on("unhandledRejection", getErrorHandler(this.log));
 
@@ -243,14 +244,14 @@ export class Probot {
     appFns.concat(defaultAppFns).forEach((appFn) => this.load(appFn));
 
     // Register error handler as the last middleware
-    this.server.use(
+    await this.server.use(
       pinoHttp({
         logger: this.log,
       })
     );
   }
 
-  public start() {
+  public async start() {
     this.log.info(
       `Running Probot v${this.version} (Node.js: ${process.version})`
     );
@@ -258,28 +259,33 @@ export class Probot {
     const { host, webhookPath, webhookProxy } = this.state;
     const printableHost = host ?? "localhost";
 
-    this.httpServer = this.server
-      .listen(port, ...((host ? [host] : []) as any), () => {
-        if (webhookProxy) {
-          createWebhookProxy({
-            logger: this.log,
-            path: webhookPath,
-            port: port,
-            url: webhookProxy,
-          });
+    this.httpServer = (await this.server)
+      .listen(
+        port,
+        ...((host ? [host] : []) as any),
+        //@ts-ignore
+        () => {
+          if (webhookProxy) {
+            createWebhookProxy({
+              logger: this.log,
+              path: webhookPath,
+              port: port,
+              url: webhookProxy,
+            });
+          }
+          this.log.info(`Listening on http://${printableHost}:${port}`);
         }
-        this.log.info(`Listening on http://${printableHost}:${port}`);
-      })
-      .on("error", (error: NodeJS.ErrnoException) => {
-        if (error.code === "EADDRINUSE") {
-          this.log.error(
-            `Port ${port} is already in use. You can define the PORT environment variable to use a different port.`
-          );
-        } else {
-          this.log.error(error);
-        }
-        process.exit(1);
-      });
+      )
+      // .on("error", (error: NodeJS.ErrnoException) => {
+      //   if (error.code === "EADDRINUSE") {
+      //     this.log.error(
+      //       `Port ${port} is already in use. You can define the PORT environment variable to use a different port.`
+      //     );
+      //   } else {
+      //     this.log.error(error);
+      //   }
+      //   process.exit(1);
+      // });
 
     return this.httpServer;
   }
@@ -313,13 +319,14 @@ export class Probot {
    *
    * @deprecated "app.route()" is deprecated, use the "getRouter()" argument from the app function instead: "({ app, getRouter }) => { ... }"
    */
-  route(path?: string) {
+  async route(path?: string) {
     this.log.warn(
       new Deprecation(
         `[probot] "app.route()" is deprecated, use the "getRouter()" argument from the app function instead: "({ app, getRouter }) => { ... }"`
       )
     );
 
-    return getRouter(this.internalRouter, path);
+    //@ts-ignore
+    return getRouter(await this.server.Router, path);
   }
 }

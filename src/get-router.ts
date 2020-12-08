@@ -1,4 +1,5 @@
 import { Router } from "express";
+import fastify from "fastify";
 
 /**
  * Get an {@link http://expressjs.com|express} router that can be used to
@@ -9,7 +10,11 @@ import { Router } from "express";
  */
 export function getRouter(router: Router, path?: string): Router {
   if (path) {
-    const newRouter = Router();
+    const app = fastify();
+    app.register(require("./server/fastify-router"));
+
+    //@ts-ignore
+    const newRouter = app.Router;
     router.use(path, newRouter);
     return newRouter;
   }
